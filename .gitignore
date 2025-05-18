@@ -1,0 +1,6 @@
+.venv/
+.idea/
+.env
+.secrets
+logs/
+statistics/
