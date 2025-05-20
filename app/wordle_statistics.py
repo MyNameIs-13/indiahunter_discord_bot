@@ -60,7 +60,7 @@ async def get_wordle_statistic(start: datetime, end: datetime, channel) -> dict:
             async for msg in channel.history(after=start, before=end, limit=None, oldest_first=True):
                 wordle_id, wordle_score = __get_wordle_data(msg.content)
                 if wordle_id:
-                    wordle_raw_data_dict.setdefault(msg.author.id, {'name': msg.author.name}).setdefault(wordle_id, wordle_score)
+                    wordle_raw_data_dict.setdefault(str(msg.author.id), {'name': msg.author.name}).setdefault(wordle_id, wordle_score)
             logger.info('All messages fetched...')
         except Exception as e:
             logger.error(f'Messages could not be fetched...\n{e}')
@@ -70,7 +70,7 @@ async def get_wordle_statistic(start: datetime, end: datetime, channel) -> dict:
             wordle_raw_data_dict['last_save'] = now.strftime("%Y-%m-%d %H:%M:%S") # Save in file
             with open(wordle_raw_data_filepath, 'w', encoding='utf-8') as f:
                 json.dump(wordle_raw_data_dict, f, ensure_ascii=False, indent=4)
-            logger.debug('Message file saved...')
+            logger.info('Message file saved...')
         except Exception as e:
             logger.error(f'Wordle raw data could not be saved...\n{e}')
 

@@ -4,6 +4,8 @@ import re
 import sys
 from logging.handlers import RotatingFileHandler
 
+from dotenv import load_dotenv
+
 
 class SensitiveDataFilter(logging.Filter):
     def filter(self, record):
@@ -22,6 +24,9 @@ def setup_logging(logfile_name: str = __name__):
     if any(isinstance(h, (RotatingFileHandler, logging.StreamHandler)) for h in root_logger.handlers):
         return
 
+    # for debugging purposes when running outside of container
+    if os.path.exists('../.env'):
+        load_dotenv('../.env')
     log_level = os.getenv('LOG_LEVEL', 'DEBUG').upper()
     log_level = getattr(logging, log_level.upper(), logging.DEBUG)
 

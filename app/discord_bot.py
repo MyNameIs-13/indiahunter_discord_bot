@@ -19,6 +19,8 @@ from wordle_statistics import get_wordle_statistic
 setup_logging()
 logger = getLogger('wordle_statistic_bot')
 
+# TODO: directly analyse new messages in channels and add them to dict/file without the need to load messages in retrospect
+
 # for debugging purposes when running outside of container
 if os.path.exists('../.secrets'):
     load_dotenv('../.secrets')
@@ -185,6 +187,7 @@ async def month_autocomplete(interaction: discord.Interaction, current: str) -> 
         for month in months if current.lower() in month.lower()
     ]
 
+
 # Year autocomplete (e.g., 2020–2030)
 async def year_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
     this_year = datetime.now().year
@@ -225,7 +228,7 @@ async def wordle_stats(
             for user_id, data in wordle_statistic_dict.items():
                 for f in user_filter:
                     logger.debug(f'filter: {f}; id: {user_id}; name: {data['name']}')
-                    if (f.isdigit() and int(f) == int(user_id)) or f in data['name']:
+                    if (f.isdigit() and f == user_id) or f in data['name']:
                         filtered_dict[user_id] = data
                         break
             wordle_statistic_dict = filtered_dict
