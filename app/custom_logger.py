@@ -15,7 +15,7 @@ class SensitiveDataFilter(logging.Filter):
             if isinstance(record.msg, (list, str)):
                 # Use regex to find and replace the value of "password"
                 if 'TOKEN' in str(record.msg):
-                    record.msg = re.sub(r"(TOKEN'?:? ?=?'?)[^\s^']+", r"\1****", str(record.msg))
+                    record.msg = re.sub(r"(TOKEN'?:? ?=?'?)[^\s^']+", r'\1****', str(record.msg))
         return True
 
 

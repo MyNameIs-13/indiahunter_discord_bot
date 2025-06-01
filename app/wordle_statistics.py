@@ -76,7 +76,7 @@ async def __get_wordle_statistic(start: datetime, end: datetime, channel: discor
         wordle_raw_data_dict = {}
 
     if wordle_raw_data_dict.get('last_save'):
-        last_save = datetime.strptime(wordle_raw_data_dict['last_save'], "%Y-%m-%d %H:%M:%S")
+        last_save = datetime.strptime(wordle_raw_data_dict['last_save'], '%Y-%m-%d %H:%M:%S')
 
         if last_save >= end:
             # Data from 'end' to somewhere before now is already saved
@@ -97,7 +97,7 @@ async def __get_wordle_statistic(start: datetime, end: datetime, channel: discor
 
         try:
             # Save to file (or database)
-            wordle_raw_data_dict['last_save'] = now.strftime("%Y-%m-%d %H:%M:%S") # Save in file
+            wordle_raw_data_dict['last_save'] = now.strftime('%Y-%m-%d %H:%M:%S') # Save in file
             with open(wordle_raw_data_filepath, 'w', encoding='utf-8') as f:
                 json.dump(wordle_raw_data_dict, f, ensure_ascii=False, indent=4)
             logger.info('Message file saved...')
@@ -184,7 +184,7 @@ async def __send_stats_embed(wordle_statistic_dict: dict, month_str: str, channe
     sorted_wordle_statistic_dict = sorted(wordle_statistic_dict.items(), key=lambda x: x[1]['average_score'])
     sorted_wordle_statistic_dict = sorted(
         wordle_statistic_dict.items(),
-        key=lambda x: (-x[1]["points"], x[1]["average_score"])  # descending points, ascending average
+        key=lambda x: (-x[1]['points'], x[1]['average_score'])  # descending points, ascending average
     )
 
     embed = discord.Embed(

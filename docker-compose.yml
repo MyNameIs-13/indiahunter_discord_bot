@@ -15,10 +15,10 @@ services:
     logging:
       driver: json-file
       options:
-        max-size: "5m"
-        max-file: "5"
+        max-size: '5m'
+        max-file: '5'
     labels:
-      - "com.centurylinklabs.watchtower.enable=false"  #  watchtower should not try to monitor and update
+      - 'com.centurylinklabs.watchtower.enable=false'  #  watchtower should not try to monitor and update
     container_name: indiahunter-discord-bot
     environment:
       - CHANNEL_ID=${CHANNEL_ID}
@@ -27,17 +27,17 @@ services:
     env_file:
       - .secrets
     ports:
-      - "8648:8080"  # Optional: expose healthcheck port for external visibility
+      - '8648:8080'  # Optional: expose healthcheck port for external visibility
     restart: always
     healthcheck:
-      test: [ "CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')" ]
+      test: [ 'CMD', 'python3', '-c', 'import urllib.request; urllib.request.urlopen("http://localhost:8080/health")' ]
       interval: 5m
       timeout: 5s
       retries: 3
     cap_drop:
       - ALL
     volumes:
-      - "${LOG_PATH:-/}:/app/logs"
-      - "${DATA_PATH:-/}:/app/data"
+      - '${LOG_PATH:-/}:/app/logs'
+      - '${DATA_PATH:-/}:/app/data'
       - /etc/localtime:/etc/localtime:ro  # Share host timezone setting
     user: ${UID:-65534}:${GID:-65534}

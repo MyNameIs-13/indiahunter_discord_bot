@@ -81,8 +81,8 @@ async def __run_health_server():
 # Month autocomplete
 async def __month_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
     months = [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December"
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
     ]
     return [
         app_commands.Choice(name=month, value=month)
@@ -102,9 +102,9 @@ async def __year_autocomplete(interaction: discord.Interaction, current: str) ->
 
 @client.tree.command(name='wordle_stats', description='Provides monthly wordle statistic from the wordle channel')
 @app_commands.describe(
-    month="(optional) The month for which the statistic should be given",
-    year="(optional) The year for which the statistic should be given",
-    users="(optional) The users for which the statistic should be given"
+    month='(optional) The month for which the statistic should be given',
+    year='(optional) The year for which the statistic should be given',
+    users='(optional) The users for which the statistic should be given'
 )
 @app_commands.autocomplete(month=__month_autocomplete, year=__year_autocomplete)
 async def wordle_stats(
