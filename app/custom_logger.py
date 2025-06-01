@@ -3,12 +3,13 @@ import os
 import re
 import sys
 from logging.handlers import RotatingFileHandler
+from typing import Optional
 
 from dotenv import load_dotenv
 
 
 class SensitiveDataFilter(logging.Filter):
-    def filter(self, record):
+    def filter(self, record: logging.LogRecord) -> Optional[bool]:
         # If the log message is a dictionary, mask sensitive fields
         if hasattr(record, 'msg'):
             if isinstance(record.msg, (list, str)):
@@ -17,7 +18,8 @@ class SensitiveDataFilter(logging.Filter):
                     record.msg = re.sub(r"(TOKEN'?:? ?=?'?)[^\s^']+", r"\1****", str(record.msg))
         return True
 
-def setup_logging(logfile_name: str = __name__):
+
+def setup_logging(logfile_name: str = __name__) -> None:
     root_logger = logging.getLogger()
 
     # Prevent duplicate configuration

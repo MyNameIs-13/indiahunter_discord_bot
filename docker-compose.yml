@@ -1,7 +1,7 @@
 services:
-  wordle-statistics-discord-bot:
+  indiahunter-discord-bot:
     build: .
-    image: wordle-statistics-discord-bot:${TAG}
+    image: indiahunter-discord-bot:${TAG}
     deploy:
       resources:
         limits:
@@ -19,7 +19,7 @@ services:
         max-file: "5"
     labels:
       - "com.centurylinklabs.watchtower.enable=false"  #  watchtower should not try to monitor and update
-    container_name: wordle-statistics-discord-bot
+    container_name: indiahunter-discord-bot
     environment:
       - CHANNEL_ID=${CHANNEL_ID}
       - SERVER_ID=${SERVER_ID}
@@ -38,6 +38,6 @@ services:
       - ALL
     volumes:
       - "${LOG_PATH:-/}:/app/logs"
-      - "${STATISTICS_PATH:-/}:/app/statistics"
+      - "${DATA_PATH:-/}:/app/data"
       - /etc/localtime:/etc/localtime:ro  # Share host timezone setting
     user: ${UID:-65534}:${GID:-65534}

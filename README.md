@@ -1,10 +1,12 @@
-# Wordle Statistics Discord Bot
+# inDiaHunter Discord Bot
 
-reads shared wordle data from specified channel and returns statistics about it.
+combines several functions:
+
+- reads shared wordle data from specified channel and returns statistics about it.
 Post the monthly statistic to a channel once each new month
 Reacts to the command `wordle_stats <month> <year> <users>` to provide statistic
-
 ![](Screenshot_2025-05-18_00-08-34.png)
+- keeps tracks of reminder and notifies users when they are due `/reminder`
 
 ## Requirements
 
@@ -19,12 +21,12 @@ Reacts to the command `wordle_stats <month> <year> <users>` to provide statistic
   ```text
   DISCORD_TOKEN=ABCDEF123456
   ```
-- create a folder for `statistics` and add their path to the `.env` file as `STATISTICS_PATH`
+- create a folder for `data` and add their path to the `.env` file as `DATA_PATH`
   - the used folder require access right for anybody when the `nobody` user is used to run the container
     ```shell
-    mkdir /your/path/statistics
-    sudo chown -R 65534:65534 /your/path/statistics
-    chmod -R u+rw /your/path/statistics
+    mkdir /your/path/data
+    sudo chown -R 65534:65534 /your/path/data
+    chmod -R u+rw /your/path/data
     ```  
 - crate a `.env` file (example values)
   ```text
@@ -35,7 +37,7 @@ Reacts to the command `wordle_stats <month> <year> <users>` to provide statistic
   CHANNEL_ID=1234567890
   SERVER_ID=1234567890
   LOG_PATH=./logs
-  STATISTICS_PATH=./statistics
+  DATA_PATH=./data
   ```
 - (optional) create a folder (and give access permissions) for `logs`
   - when an accessible `/app/logs` mount is created, and LOG_LEVEL=DEBUG, log files will be written into this folder. Otherwise they are written to stdout
@@ -63,18 +65,18 @@ docker compose up --build
 - Trivy
   - using on machine where image is located
     ```shell
-    trivy image wordle-statistics-discord-bot:<TAG>
+    trivy image indiahunter-discord-bot:<TAG>
     ```
   - when using a different machine
     ```shell
     # on machine with image
-    docker save -o /save/path/wordle-statistics-discord-bot.tar wordle-statistics-discord-bot:<TAG>
+    docker save -o /save/path/indiahunter-discord-bot.tar indiahunter-discord-bot:<TAG>
     # -> transfer image cp, scp, rsync, smb, ...
     # on machine with trivy
-    trivy image --input /path/to/wordle-statistics-discord-bot.tar
+    trivy image --input /path/to/indiahunter-discord-bot.tar
     ```
   - current output
     ```text
-    /path/to/wordle-statistics-discord-bot.tar (alpine 3.21.2)
+    /path/to/indiahunter-discord-bot.tar (alpine 3.21.2)
     Total: 0 (UNKNOWN: 0, LOW: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 0)
     ```

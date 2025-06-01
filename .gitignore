@@ -3,5 +3,5 @@
 .env
 .secrets
 logs/
-statistics/
+data/
 **/__pycache__/

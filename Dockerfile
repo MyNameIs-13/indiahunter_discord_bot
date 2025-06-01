@@ -6,9 +6,10 @@ COPY app/ .
 
 RUN pip install --no-cache-dir -r /app/requirements.txt \
   ; mkdir /app/logs \
-  ; mkdir /app/statistics \
+  ; mkdir /app/data \
   ; chmod 0444 /app/discord_bot.py \
   ; chmod 0444 /app/custom_logger.py \
-  ; chmod 0444 /app/wordle_statistics.py
+  ; chmod 0444 /app/wordle_statistics.py \
+  ; chmod 0444 /app/reminder.py
 
 ENTRYPOINT [ "python", "discord_bot.py" ]

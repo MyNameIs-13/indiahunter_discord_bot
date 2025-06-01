@@ -1,7 +1,5 @@
 import asyncio
-import calendar
 import os
-import re
 from datetime import datetime
 from logging import getLogger
 from typing import Optional
@@ -14,12 +12,11 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 
 from custom_logger import setup_logging
-from wordle_statistics import get_wordle_statistic
+from reminder import cancel_reminder as __cancel_reminder, reminder as __reminder
+from wordle_statistics import wordle_stats as __wordle_stats, monthly_wordle_statistic
 
 setup_logging()
-logger = getLogger('wordle_statistic_bot')
-
-# TODO: directly analyse new messages in channels and add them to dict/file without the need to load messages in retrospect
+logger = getLogger('inDiaHunter_bot')
 
 # for debugging purposes when running outside of container
 if os.path.exists('../.secrets'):
@@ -51,7 +48,7 @@ class MyClient(discord.Client):
     # In this basic example, we just synchronize the app commands to one guild.
     # Instead of specifying a guild to every command, we copy over our global commands instead.
     # By doing so, we don't have to wait up to an hour until they are shown to the end-user.
-    async def setup_hook(self):
+    async def setup_hook(self) -> None:
         # This copies the global commands over to your guild.
         if MY_GUILD:
             self.tree.copy_global_to(guild=MY_GUILD)
@@ -68,121 +65,21 @@ scheduler = AsyncIOScheduler()
 app = FastAPI()
 
 @app.get('/health')
-async def health():
+async def __health():
     if client.is_ready():
         return {'status': 'healthy'}
     logger.error('Client is unhealthy')
     return {'status': 'unhealthy'}, 503
 
 
-async def run_health_server():
+async def __run_health_server():
     config = uvicorn.Config(app, host='0.0.0.0', port=8080, loop='asyncio', log_config=None)
     server = uvicorn.Server(config)
     await server.serve()
 
 
-def __build_date_range(month: Optional[str] = None, year: Optional[str] = None, use_previous: bool = False) -> tuple[
-    datetime, datetime, str]:
-    now = datetime.now()
-
-    year_num = int(year) if year and year.isdigit() else now.year
-
-    # Determine base month and year
-    if month:
-        month_num = datetime.strptime(month, '%B').month
-    else:
-        month_num = now.month - 1 if use_previous else now.month
-        if month_num == 0:
-            month_num = 12
-            year_num -= 1  # Decrement year if wrapping to December
-
-    start_date = datetime(year=year_num, month=month_num, day=1)
-    _, days_in_month = calendar.monthrange(year=year_num, month=month_num)
-    end_date = datetime(year=year_num, month=month_num, day=days_in_month, hour=23, minute=59, second=59)
-    month_str = start_date.strftime('%B %Y')
-
-    return start_date, end_date, month_str
-
-
-def __parse_command_arg_users(users: Optional[str]) -> list:
-    user_filter = []
-    logger.debug(f'users: {users}')
-    if users:
-        users_list = [t.strip() for t in re.split(r'[,\s]+', users) if t.strip()]
-        for user in users_list:
-            normalized = user.lower().strip()
-            mention_match = re.fullmatch(r'<@!?(\d+)>', normalized)
-            # Check for user mention (e.g., <@123456>) (with or without '!')
-            if mention_match:
-                user_filter.append(mention_match.group(1))
-            # Check for username
-            elif re.fullmatch(r'\w+', normalized):
-                user_filter.append(normalized)
-    logger.debug(f'user_filter: {user_filter}')
-    return user_filter
-
-
-async def __send_stats_embed(wordle_statistic_dict: dict, month_str: str, channel: discord.TextChannel = None,
-                             interaction: discord.Interaction = None):
-    """
-    Send a pretty embed with monthly stats.
-    """
-    # Medals for top 3
-    medal_symbols = ['🥇', '🥈', '🥉']
-    # Sort users by average score (descending)
-    sorted_wordle_statistic_dict = sorted(wordle_statistic_dict.items(), key=lambda x: x[1]['average_score'])
-    sorted_wordle_statistic_dict = sorted(
-        wordle_statistic_dict.items(),
-        key=lambda x: (-x[1]["points"], x[1]["average_score"])  # descending points, ascending average
-    )
-
-    embed = discord.Embed(
-        title=f'📊 Wordle Stats – {month_str}',
-        color=0x2ecc71
-    )
-    for i, (user_id, user_data_dict) in enumerate(sorted_wordle_statistic_dict):
-        rank = ' ' + medal_symbols[i] if i < len(medal_symbols) else ''
-        block = (
-            '```'
-            f'🎯 Points : {user_data_dict['points']}{rank}\n'
-            f'🎮 Games  : {user_data_dict['participation_count']}\n'
-            f'✅ Wins   : {user_data_dict['success_count']}\n'
-            f'❌ Fails  : {user_data_dict['failure_count']}\n'
-            f'📊 Avg    : {user_data_dict['average_score']}\n'
-            f'🏆 Best   : {user_data_dict['best_score']} (×{user_data_dict['best_score_count']})'
-            '```'
-        )
-        embed.add_field(name=f'**{user_data_dict["name"]}**', value=block, inline=False)
-
-    if interaction:
-        logger.info('Sending discord message to user')
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-    elif channel:
-        logger.info('Sending discord message to channel')
-        await channel.send(embed=embed)
-
-
-async def monthly_wordle_statistic():
-    logger.info('Start monthly statistic output to channel...')
-    channel = client.get_channel(CHANNEL_ID)
-    if channel:
-        last_months_first, end, month_str = __build_date_range(use_previous=True)
-        wordle_statistic_dict = await get_wordle_statistic(last_months_first, end, channel)
-        await __send_stats_embed(wordle_statistic_dict, month_str, channel=channel)
-    else:
-        logger.error('Channel not found!')
-
-
-async def __send_dm(ctx, message: str = None, embed: discord.Embed = None):
-    try:
-        await ctx.author.send(content=message, embed=embed)
-    except discord.Forbidden:
-        logger.error(f'Could not DM {ctx.author.name}')
-        await ctx.reply('❌ I couldn\'t DM you. Please enable DMs from server members.')
-
-
 # Month autocomplete
-async def month_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
+async def __month_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
     months = [
         "January", "February", "March", "April", "May", "June",
         "July", "August", "September", "October", "November", "December"
@@ -194,7 +91,7 @@ async def month_autocomplete(interaction: discord.Interaction, current: str) -> 
 
 
 # Year autocomplete (e.g., 2020–2030)
-async def year_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
+async def __year_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
     this_year = datetime.now().year
     years = [str(y) for y in range(this_year - 5, this_year + 6)]
     return [
@@ -203,58 +100,50 @@ async def year_autocomplete(interaction: discord.Interaction, current: str) -> l
     ]
 
 
-@client.tree.command(name='wordle_stats', description='Provides monthly wordle statistic from the wordle channel ')
+@client.tree.command(name='wordle_stats', description='Provides monthly wordle statistic from the wordle channel')
 @app_commands.describe(
     month="(optional) The month for which the statistic should be given",
     year="(optional) The year for which the statistic should be given",
     users="(optional) The users for which the statistic should be given"
 )
-@app_commands.autocomplete(month=month_autocomplete, year=year_autocomplete)
+@app_commands.autocomplete(month=__month_autocomplete, year=__year_autocomplete)
 async def wordle_stats(
         interaction: discord.Interaction,
         month: Optional[str] = None,
         year: Optional[str] = None,
         users: Optional[str] = None,
 ):
-    logger.info('Command wordle_stats execution started...')
-    user_filter = __parse_command_arg_users(users)
-    start, end, month_str = __build_date_range(month=month, year=year)
-
     channel = client.get_channel(CHANNEL_ID)
-    if channel:
-        wordle_statistic_dict = await get_wordle_statistic(start, end, channel)
-        if not wordle_statistic_dict:
-            await interaction.response.send_message(f'📭 No stats found for {month_str}.', ephemeral=True)
-            return
+    await __wordle_stats(interaction, channel, month, year, users)
 
-        # Filter for user if needed
-        if user_filter:
-            filtered_dict = {}
-            for user_id, data in wordle_statistic_dict.items():
-                for f in user_filter:
-                    logger.debug(f'filter: {f}; id: {user_id}; name: {data['name']}')
-                    if (f.isdigit() and f == user_id) or f in data['name']:
-                        filtered_dict[user_id] = data
-                        break
-            wordle_statistic_dict = filtered_dict
 
-            if not wordle_statistic_dict:
-                await interaction.response.send_message(f'🙅 No stats found for that user in {month_str}.', ephemeral=True)
-                return
+@client.tree.command(name='reminder', description='Let the bot remind you')
+@app_commands.describe(
+    time='When should the reminder remind you?',
+    message='what is the reminder for?'
+)
+async def reminder(
+        interaction: discord.Interaction,
+        time: str,
+        message: str = 'something',
+        voice: bool = False
+):
+    await __reminder(interaction, time, message, voice)
 
-        await __send_stats_embed(wordle_statistic_dict, month_str, interaction=interaction)
-    else:
-        logger.error('Channel not found!')
-        await interaction.response.send_message('Channel not found!', ephemeral=True)
+
+@client.tree.command(name='cancel_reminder', description='Cancel your active reminder.')
+async def cancel_reminder(interaction: discord.Interaction):
+    await __cancel_reminder(interaction)
 
 
 @client.event
 async def on_ready():
     logger.info(f'Logged in as {client.user}')
     # Schedule to run on the 1st of every month at 00:05
-    scheduler.add_job(monthly_wordle_statistic, 'cron', day=1, hour=0, minute=5)
+    channel = client.get_channel(CHANNEL_ID)
+    scheduler.add_job(monthly_wordle_statistic, 'cron', day=1, hour=0, minute=5, kwargs={'channel': channel})
     scheduler.start()
-    asyncio.create_task(run_health_server())
+    asyncio.create_task(__run_health_server())
 
 
 client.run(TOKEN, log_handler=None)
