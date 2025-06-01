@@ -4,3 +4,4 @@
 .secrets
 logs/
 statistics/
+**/__pycache__/

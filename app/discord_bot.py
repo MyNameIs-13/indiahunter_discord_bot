@@ -131,6 +131,10 @@ async def __send_stats_embed(wordle_statistic_dict: dict, month_str: str, channe
     medal_symbols = ['🥇', '🥈', '🥉']
     # Sort users by average score (descending)
     sorted_wordle_statistic_dict = sorted(wordle_statistic_dict.items(), key=lambda x: x[1]['average_score'])
+    sorted_wordle_statistic_dict = sorted(
+        wordle_statistic_dict.items(),
+        key=lambda x: (-x[1]["points"], x[1]["average_score"])  # descending points, ascending average
+    )
 
     embed = discord.Embed(
         title=f'📊 Wordle Stats – {month_str}',
@@ -140,11 +144,12 @@ async def __send_stats_embed(wordle_statistic_dict: dict, month_str: str, channe
         rank = ' ' + medal_symbols[i] if i < len(medal_symbols) else ''
         block = (
             '```'
-            f'🎮 Games : {user_data_dict['participation_count']}\n'
-            f'✅ Wins  : {user_data_dict['success_count']}\n'
-            f'❌ Fails : {user_data_dict['failure_count']}\n'
-            f'📊 Avg   : {user_data_dict['average_score']}{rank}\n'
-            f'🏆 Best  : {user_data_dict['best_score']} (×{user_data_dict['best_score_count']})'
+            f'🎯 Points : {user_data_dict['points']}{rank}\n'
+            f'🎮 Games  : {user_data_dict['participation_count']}\n'
+            f'✅ Wins   : {user_data_dict['success_count']}\n'
+            f'❌ Fails  : {user_data_dict['failure_count']}\n'
+            f'📊 Avg    : {user_data_dict['average_score']}\n'
+            f'🏆 Best   : {user_data_dict['best_score']} (×{user_data_dict['best_score_count']})'
             '```'
         )
         embed.add_field(name=f'**{user_data_dict["name"]}**', value=block, inline=False)

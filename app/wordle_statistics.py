@@ -2,9 +2,13 @@ import json
 import logging
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 logger = logging.getLogger('wordle_statistic_bot')
+
+SCORE_TO_POINTS = {1: 19, 2: 11, 3: 5, 4: 3, 5: 2, 6: 1, 8: 0 }
+REFERENCE_WORDLE_ID = {'id': 1337, 'date': datetime(2025, 2, 15)}
+
 
 def __get_wordle_data(text: str) -> tuple[str, int]:
     match = re.search(r'Wordle\s([\d,\\. ]+)\s([1-6X])/6', text)
@@ -16,9 +20,12 @@ def __get_wordle_data(text: str) -> tuple[str, int]:
     else:
         return '', 0
 
-def __get_users_wordle_statistic(user_data_dict: dict) -> tuple[int, int, float, int, int]:
-    failure_count, success_count, average_score, best_score = 0, 0, 0, 8
-    for score in user_data_dict.values():
+def __get_users_wordle_statistic(user_data_dict: dict, game_ids_set: set) -> tuple[int, int, int, float, int, int]:
+    points, failure_count, success_count, average_score, best_score = 0, 0, 0, 0, 8
+    for game_id, score in user_data_dict.items():
+        game_ids_set.remove(int(game_id))
+        score = int(score)
+        points += SCORE_TO_POINTS[score]
         average_score += score
         if score < best_score:
             best_score = score
@@ -29,7 +36,24 @@ def __get_users_wordle_statistic(user_data_dict: dict) -> tuple[int, int, float,
 
     average_score = round(average_score / len(user_data_dict), 2)
     best_score_count = list(user_data_dict.values()).count(best_score)
-    return failure_count, success_count, average_score, best_score, best_score_count
+    points -= len(game_ids_set)
+    return points, failure_count, success_count, average_score, best_score, best_score_count
+
+
+def __get_wordle_numbers_for_month(start: datetime, end: datetime) -> set:
+    day_range = (end - start).days + 1
+
+    # Calculate the difference in days
+    delta_days = (start - REFERENCE_WORDLE_ID['date']).days
+    # Compute the wordle id
+    wordle_id = REFERENCE_WORDLE_ID['id'] + delta_days
+
+    wordle_ids_set = set()
+    for i in range(day_range):
+        wordle_ids_set.add(wordle_id + i)
+
+    return wordle_ids_set
+
 
 async def get_wordle_statistic(start: datetime, end: datetime, channel) -> dict:
     statistics_folderpath = './statistics'
@@ -37,6 +61,8 @@ async def get_wordle_statistic(start: datetime, end: datetime, channel) -> dict:
     wordle_raw_data_filepath = os.path.join(statistics_folderpath, f'wordle_raw_data_{start.strftime("%Y_%m")}.json')
     load_messages = True
     now = datetime.now()
+
+    wordle_ids_set = __get_wordle_numbers_for_month(start, end if now > end else now)
 
     try:
         logger.info(f'Try to get {start.month} {start.year} messages from file...')
@@ -59,7 +85,7 @@ async def get_wordle_statistic(start: datetime, end: datetime, channel) -> dict:
         try:
             async for msg in channel.history(after=start, before=end, limit=None, oldest_first=True):
                 wordle_id, wordle_score = __get_wordle_data(msg.content)
-                if wordle_id:
+                if wordle_id and int(wordle_id) in wordle_ids_set:
                     wordle_raw_data_dict.setdefault(str(msg.author.id), {'name': msg.author.name}).setdefault(wordle_id, wordle_score)
             logger.info('All messages fetched...')
         except Exception as e:
@@ -79,10 +105,11 @@ async def get_wordle_statistic(start: datetime, end: datetime, channel) -> dict:
     wordle_statistic_dict = {}
     for user_id, user_data_dict in wordle_raw_data_dict.items():
         name = user_data_dict.pop('name')
-        failure_count, success_count, average_score, best_score, best_score_count = __get_users_wordle_statistic(
-            user_data_dict)
+        points, failure_count, success_count, average_score, best_score, best_score_count = __get_users_wordle_statistic(
+            user_data_dict, wordle_ids_set.copy())
         wordle_statistic_dict[user_id] = {
             'name': name,
+            'points': points,
             'participation_count': len(user_data_dict),
             'failure_count': failure_count,
             'success_count': success_count,
