@@ -3,6 +3,7 @@ import logging
 import os
 import re
 from datetime import datetime, timedelta
+from typing import Optional
 
 import discord
 from gtts import gTTS
@@ -14,7 +15,7 @@ ACTIVE_TIMERS = {}
 
 def __parse_time_string(time_str: str) -> int:
     time_str = time_str.strip().lower()
-    logger.debug(f'input time string: {time_str}')
+    logger.info(f'input time string: {time_str}')
 
     # Try HH:MM absolute time format
     match = re.match(r'^(\d{1,2}):(\d{2})$', time_str)
@@ -24,7 +25,9 @@ def __parse_time_string(time_str: str) -> int:
         target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
         if target <= now:
             target += timedelta(days=1)  # schedule for tomorrow
-        return int((target - now).total_seconds())
+        total_seconds = int((target - now).total_seconds())
+        logger.info(f'output time seconds: {total_seconds}')
+        return total_seconds
 
     # Fallback: parse relative time (e.g. 1h30m)
     total_seconds = 0
@@ -38,23 +41,58 @@ def __parse_time_string(time_str: str) -> int:
         value = int(value)
         if unit == 'h':
             total_seconds += value * 3600
-        elif unit == 'm':
+        elif unit == 'm' or unit == '':
             total_seconds += value * 60
-        elif unit == 's' or unit == '':
+        elif unit == 's':
             total_seconds += value
         else:
             raise ValueError('Invalid time unit')
-    logger.debug(f'output time seconds: {total_seconds}')
+    logger.info(f'output time seconds: {total_seconds}')
     return total_seconds
 
 
+async def play_tts_and_handle_error(user: discord.User, vc: discord.VoiceClient, filename: str, message: str):
+    playback_failed = False
+    playback_done = asyncio.Event()
+
+    def after_playback(error: Optional[Exception]):
+        nonlocal playback_failed
+        if error:
+            logger.error(f'Playback error: {error}')
+            playback_failed = True
+        playback_done.set()
+
+    try:
+        vc.play(discord.FFmpegPCMAudio(filename), after=after_playback)
+
+        await playback_done.wait()
+
+        if playback_failed:
+            try:
+                await user.send('⚠️ Audio playback failed. Here\'s your reminder:')
+                await user.send(f'🔔 {message}')
+            except discord.Forbidden:
+                logger.error(f'Cannot send DM to {user}')
+
+    finally:
+        if vc.is_connected():
+            await vc.disconnect(force=True)
+        if os.path.exists(filename):
+            os.remove(filename)
+
+
 async def __run_timer(interaction: discord.Interaction, seconds: int, message: str, voice: bool):
+    vc = None
     user = interaction.user
+    filename = f'./data/temp_speech_{user.id}.mp3'
     try:
         await asyncio.sleep(seconds)
         # Check if user is in a voice channel
         guild = interaction.guild
-        user = guild.get_member(interaction.user.id)
+        updated_user = guild.get_member(interaction.user.id)
+        if updated_user:
+            user = updated_user
+        filename = f'./data/temp_speech_{user.id}.mp3'
         logger.info(f'reminder for {user.name} will be announced')
         try:
             lang = detect(message)  # Auto-detect language (e.g., 'en', 'fr', 'de')
@@ -68,34 +106,44 @@ async def __run_timer(interaction: discord.Interaction, seconds: int, message: s
 
         channel = user.voice.channel
         if (voice and user and user.voice and user.voice.channel) or (channel and len(channel.members) == 1):
-            vc = await user.voice.channel.connect()
-
             tts = gTTS(text=message, lang=lang)
-            tts.save(f'./data/temp_speech_{user.id}.mp3')
+            tts.save(filename)
 
-            vc.play(discord.FFmpegPCMAudio(f'./data/temp_speech_{user.id}.mp3'))
-            while vc.is_playing():
-                await asyncio.sleep(1)
+            if not os.path.exists(filename) or os.path.getsize(filename) == 0:
+                raise RuntimeError('Audio file is missing or empty.')
 
-            await vc.disconnect()
-            os.remove(f'./data/temp_speech_{user.id}.mp3')
+            vc = await user.voice.channel.connect()
+            await play_tts_and_handle_error(user, vc, filename, message)
+
+            os.remove(filename)
         else:
             # DM fallback
             try:
                 dm = await user.create_dm()
                 await dm.send(message)
-            except Exception:
+            except Exception as e:
                 try:
+                    logger.error(f'sending DM did not work: {e}')
                     await interaction.followup.send(message, ephemeral=True)
                 except:
                     pass
 
     except asyncio.CancelledError:
         pass
+    except Exception as e:
+        logger.error(f'[Voice Playback Error] {e}')
+        try:
+            await user.send(
+                '⚠️ An error occurred while trying to play your reminder in voice. Here\'s the message instead:')
+            await user.send(f'🔔 {message}')
+        except:
+            pass
     finally:
         ACTIVE_TIMERS.pop(user.id, None)
-        if os.path.exists(f'./data/temp_speech_{user.id}.mp3'):
-            os.remove(f'./data/temp_speech_{user.id}.mp3')
+        if vc and vc.is_connected():
+            await vc.disconnect(force=True)
+        if os.path.exists(filename):
+            os.remove(filename)
 
 
 async def reminder(
