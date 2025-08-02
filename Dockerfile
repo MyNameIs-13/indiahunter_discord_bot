@@ -4,7 +4,17 @@ WORKDIR /app
 
 COPY app/ .
 
-RUN pip install --no-cache-dir -r /app/requirements.txt \
+RUN apk add --no-cache \
+    ffmpeg \
+    opus \
+    opus-dev \
+    libsodium \
+    libsodium-dev \
+    gcc \
+    musl-dev \
+    libffi-dev \
+    openssl-dev \
+  ; pip install --no-cache-dir -r /app/requirements.txt \
   ; mkdir /app/logs \
   ; mkdir /app/data \
   ; chmod 0444 /app/discord_bot.py \

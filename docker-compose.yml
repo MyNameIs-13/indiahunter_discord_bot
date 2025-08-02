@@ -6,8 +6,7 @@ services:
       resources:
         limits:
           cpus: '0.50'
-          memory: 100M
-          pids: 3  # async needs threads
+          memory: 256M
         reservations:
           cpus: '0.25'
           memory: 50M
