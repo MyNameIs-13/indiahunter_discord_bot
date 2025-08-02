@@ -141,8 +141,19 @@ async def on_ready():
     logger.info(f'Logged in as {client.user}')
     # Schedule to run on the 1st of every month at 00:05
     channel = client.get_channel(CHANNEL_ID)
-    scheduler.add_job(monthly_wordle_statistic, 'cron', day=1, hour=0, minute=5, kwargs={'channel': channel})
-    scheduler.start()
+    # Only add the job if it doesn't already exist
+    if not scheduler.get_job('monthly_wordle'):
+        scheduler.add_job(
+            monthly_wordle_statistic,
+            'cron',
+            day=1,
+            hour=0,
+            minute=5,
+            kwargs={'channel': channel},
+            id='monthly_wordle'
+        )
+    if not scheduler.running:
+        scheduler.start()
     asyncio.create_task(__run_health_server())
 
 
