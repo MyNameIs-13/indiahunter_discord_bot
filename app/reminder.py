@@ -51,99 +51,101 @@ def __parse_time_string(time_str: str) -> int:
     return total_seconds
 
 
-async def play_tts_and_handle_error(user: discord.User, vc: discord.VoiceClient, filename: str, message: str):
-    playback_failed = False
-    playback_done = asyncio.Event()
-
-    def after_playback(error: Optional[Exception]):
-        nonlocal playback_failed
-        if error:
-            logger.error(f'Playback error: {error}')
-            playback_failed = True
-        playback_done.set()
-
+async def __send_reminder_fallback(interaction: discord.Interaction, user: discord.User | discord.Member, message: str):
+    """Tries to send a DM first, falls back to the interaction channel."""
     try:
-        vc.play(discord.FFmpegPCMAudio(filename), after=after_playback)
-
-        await playback_done.wait()
-
-        if playback_failed:
-            try:
-                await user.send('⚠️ Audio playback failed. Here\'s your reminder:')
-                await user.send(f'🔔 {message}')
-            except discord.Forbidden:
-                logger.error(f'Cannot send DM to {user}')
-
-    finally:
-        if vc.is_connected():
-            await vc.disconnect(force=True)
-        if os.path.exists(filename):
-            os.remove(filename)
+        await user.send(f'🔔 {message}')
+    except discord.Forbidden:
+        logger.warning(f'Cannot send DM to {user.name}. Fallback to channel.')
+        try:
+            # Make sure channel is not None and is a TextChannel
+            if interaction.channel and isinstance(interaction.channel, discord.TextChannel):
+                 await interaction.channel.send(f'{user.mention}, I couldn\'t DM you, so here is your reminder: {message}')
+            else:
+                logger.error('Cannot send fallback message, interaction channel is not a valid text channel.')
+        except discord.Forbidden:
+            logger.error(f'Cannot send message to channel {interaction.channel.name} either due to permissions.')
+        except Exception as e:
+            logger.error(f'Failed to send fallback message to channel: {e}')
+    except Exception as e:
+        logger.error(f'Failed to send DM to {user.name}: {e}')
 
 
 async def __run_timer(interaction: discord.Interaction, seconds: int, message: str, voice: bool):
-    vc = None
     user = interaction.user
-    filename = f'./data/temp_speech_{user.id}.mp3'
+    guild = interaction.guild
+    original_message = message
+
     try:
         await asyncio.sleep(seconds)
-        # Check if user is in a voice channel
-        guild = interaction.guild
-        updated_user = guild.get_member(interaction.user.id)
-        if updated_user:
-            user = updated_user
-        filename = f'./data/temp_speech_{user.id}.mp3'
-        logger.info(f'reminder for {user.name} will be announced')
+
+        # Refresh user object to get current voice state
+        member = guild.get_member(user.id)
+        if not member:
+            logger.warning(f'User {user.name} not found in guild, cannot send reminder.')
+            return
+
+        # Prepare localized message
         try:
-            lang = detect(message)  # Auto-detect language (e.g., 'en', 'fr', 'de')
+            lang = detect(original_message)
         except:
             lang = 'en'  # Fallback if detection fails
 
         if lang == 'de':
-            message = f'{user.name}. Das ist deine Erinnerung für {message}'
+            tts_message = f'{member.display_name}. Das ist deine Erinnerung für {original_message}'
         else:
-            message = f'{user.name}. This is your reminder for {message}'
+            tts_message = f'{member.display_name}. This is your reminder for {original_message}'
 
-        channel = user.voice.channel
-        if (voice and user and user.voice and user.voice.channel) or (channel and len(channel.members) == 1):
-            tts = gTTS(text=message, lang=lang)
-            tts.save(filename)
-
-            if not os.path.exists(filename) or os.path.getsize(filename) == 0:
-                raise RuntimeError('Audio file is missing or empty.')
-
-            vc = await user.voice.channel.connect()
-            await play_tts_and_handle_error(user, vc, filename, message)
-
-            os.remove(filename)
-        else:
-            # DM fallback
+        # Voice reminder logic
+        if voice and member.voice and member.voice.channel:
+            vc = None
+            filename = f'./data/temp_speech_{user.id}.mp3'
             try:
-                dm = await user.create_dm()
-                await dm.send(message)
+                # Generate TTS audio file
+                tts = gTTS(text=tts_message, lang=lang)
+                tts.save(filename)
+                if not os.path.exists(filename) or os.path.getsize(filename) == 0:
+                    raise RuntimeError('TTS audio file is missing or empty.')
+
+                # Connect to voice channel and play audio
+                vc = await member.voice.channel.connect()
+                playback_done = asyncio.Event()
+                playback_failed = False
+
+                def after_playback(error: Optional[Exception]):
+                    nonlocal playback_failed
+                    if error:
+                        logger.error(f'Playback error: {error}')
+                        playback_failed = True
+                    playback_done.set()
+
+                vc.play(discord.FFmpegPCMAudio(filename), after=after_playback)
+                await playback_done.wait()
+
+                if playback_failed:
+                    await __send_reminder_fallback(interaction, member,
+                                             '⚠️ Audio playback failed. Here\'s your reminder instead: ' + original_message)
+
             except Exception as e:
-                try:
-                    logger.error(f'sending DM did not work: {e}')
-                    await interaction.followup.send(message, ephemeral=True)
-                except:
-                    pass
+                logger.error(f'[Voice Playback Error] {e}')
+                await __send_reminder_fallback(interaction, member,
+                                         '⚠️ An error occurred during voice playback. Here\'s your reminder instead: ' + original_message)
+            finally:
+                if vc and vc.is_connected():
+                    await vc.disconnect(force=True)
+                if os.path.exists(filename):
+                    os.remove(filename)
+        else:
+            # DM fallback if voice not requested or user not in a channel
+            await __send_reminder_fallback(interaction, member, original_message)
 
     except asyncio.CancelledError:
-        pass
+        logger.info(f'Reminder for {user.name} was cancelled.')
     except Exception as e:
-        logger.error(f'[Voice Playback Error] {e}')
-        try:
-            await user.send(
-                '⚠️ An error occurred while trying to play your reminder in voice. Here\'s the message instead:')
-            await user.send(f'🔔 {message}')
-        except:
-            pass
+        logger.error(f'An unexpected error occurred in timer for {user.name}: {e}')
+        await __send_reminder_fallback(interaction, user, f'⚠️ An unexpected error occurred with your reminder for "{original_message}".')
     finally:
         ACTIVE_TIMERS.pop(user.id, None)
-        if vc and vc.is_connected():
-            await vc.disconnect(force=True)
-        if os.path.exists(filename):
-            os.remove(filename)
 
 
 async def reminder(
@@ -171,7 +173,9 @@ async def reminder(
         task.cancel()
         respond_message = f'⏹️ Your previous reminder for "**{last_reminder_message}**" was canceled.\n'
 
-    await interaction.response.send_message(f'{respond_message}⏱️ I\'ll remind you in {seconds} seconds.', ephemeral=True)
+    # Acknowledge the command and inform the user
+    time_delta = timedelta(seconds=seconds)
+    await interaction.response.send_message(f'{respond_message}⏱️ I\'ll remind you in **{time_delta}** about "**{message}**".', ephemeral=True)
 
     task = asyncio.create_task(__run_timer(interaction, seconds, message, voice))
     ACTIVE_TIMERS[user.id] = (task, message)
@@ -182,7 +186,8 @@ async def cancel_reminder(interaction: discord.Interaction):
     if user.id in ACTIVE_TIMERS:
         task, message = ACTIVE_TIMERS[user.id]
         task.cancel()
-        logger.info(f'{user.name} cancelled the reminder')
+        ACTIVE_TIMERS.pop(user.id, None)  # Eagerly remove
+        logger.info(f'{user.name} cancelled the reminder for "{message}"')
         await interaction.response.send_message(f'❌ Your reminder for "**{message}**" has been canceled.', ephemeral=True)
     else:
         await interaction.response.send_message('⚠️ You don’t have an active reminder.', ephemeral=True)
