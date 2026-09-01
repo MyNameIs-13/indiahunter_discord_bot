@@ -117,6 +117,14 @@ async def wordle_stats(
     await __wordle_stats(interaction, channel, month, year, users)
 
 
+@client.tree.command(name='post_monthly_wordle_stats', description='(Admin) Post last month\'s wordle statistic into the wordle channel')
+@app_commands.default_permissions(administrator=True)
+async def post_monthly_wordle_stats(interaction: discord.Interaction):
+    channel = client.get_channel(CHANNEL_ID)
+    await interaction.response.send_message('Posting last month\'s wordle statistic...', ephemeral=True)
+    await monthly_wordle_statistic(channel)
+
+
 @client.tree.command(name='reminder', description='Let the bot remind you')
 @app_commands.describe(
     time='When should the reminder remind you?',
