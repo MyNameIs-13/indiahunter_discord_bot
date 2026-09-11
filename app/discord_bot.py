@@ -1,15 +1,12 @@
-import asyncio
 import os
 from datetime import datetime
 from logging import getLogger
 from typing import Optional
 
 import discord
-import uvicorn
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from discord import app_commands
 from dotenv import load_dotenv
-from fastapi import FastAPI
 
 from custom_logger import setup_logging
 from reminder import cancel_reminder as __cancel_reminder, reminder as __reminder
@@ -60,22 +57,6 @@ class MyClient(discord.Client):
 intents = discord.Intents.default()
 client = MyClient(intents=intents)
 scheduler = AsyncIOScheduler()
-
-# Health server setup
-app = FastAPI()
-
-@app.get('/health')
-async def __health():
-    if client.is_ready():
-        return {'status': 'healthy'}
-    logger.error('Client is unhealthy')
-    return {'status': 'unhealthy'}, 503
-
-
-async def __run_health_server():
-    config = uvicorn.Config(app, host='0.0.0.0', port=8080, loop='asyncio', log_config=None)
-    server = uvicorn.Server(config)
-    await server.serve()
 
 
 # Month autocomplete
@@ -162,7 +143,6 @@ async def on_ready():
         )
     if not scheduler.running:
         scheduler.start()
-    asyncio.create_task(__run_health_server())
 
 
 client.run(TOKEN, log_handler=None)
