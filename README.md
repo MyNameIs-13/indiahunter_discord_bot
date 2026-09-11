@@ -8,14 +8,36 @@ Reacts to the command `wordle_stats <month> <year> <users>` to provide statistic
 ![](Screenshot_2025-05-18_00-08-34.png)
 - keeps tracks of reminder and notifies users when they are due `/reminder`
 
-## Deployment
+## Requirements
 
-Deployed natively (no Docker) as a systemd service by
-[`nixos-setup`](https://github.com/MyNameIs-13/nixos-setup)'s
-`modules/indiahunter-discord-bot` Module, which builds this repository's
-`app/` directory with `buildPythonApplication` and pulls it in as a flake
-input. `nixos-setup.indiahunterDiscordBot.enable = true` on the Bifrost
-Profile is the one place it's turned on.
+- Python 3.13
+- `ffmpeg`, `opus`, `libsodium` (voice playback for `/reminder`'s voice-channel option)
+- discord server with a discord bot: <https://discord.com/developers/docs/quick-start/getting-started#configuring-your-bot>
+
+## Setup
+
+- install dependencies:
+  ```shell
+  pip install -r app/requirements.txt
+  ```
+- create a `data` folder next to `app/` (wordle-statistics and reminder-TTS
+  temp files are written there, as `./data`) and make sure it's writable by
+  the user running the bot
+- export the required environment variables (or place them in a `.env`
+  file in `app/`, picked up automatically):
+  ```text
+  DISCORD_TOKEN=ABCDEF123456
+  CHANNEL_ID=1234567890
+  SERVER_ID=1234567890
+  LOG_LEVEL=INFO
+  ```
+
+## Run
+
+```shell
+cd app
+python discord_bot.py
+```
 
 ## Environment variables
 
