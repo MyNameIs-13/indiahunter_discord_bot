@@ -139,7 +139,9 @@ async def on_ready():
             hour=0,
             minute=5,
             kwargs={'channel': channel},
-            id='monthly_wordle'
+            id='monthly_wordle',
+            misfire_grace_time=None,
+            coalesce=True
         )
     if not scheduler.running:
         scheduler.start()
